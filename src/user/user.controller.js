@@ -6,39 +6,8 @@ const generateOTP = require("../../utils/otpGenerator");
 const { StatusCodes } = require("http-status-codes");
 const { s3Uploadv2 } = require("../../utils/s3");
 
-exports.register = catchAsyncError(async (req, res, next) => {
-  console.log("register", req.body);
-  const { dob } = req.body;
-  const imageFile = req.file;
-  const imageUrl = imageFile && (await s3Uploadv2(imageFile));
-  let user;
-  const prevUser = await userModel.findOne({ email: req.body.email });
-
-  if (prevUser && !prevUser.isVerified) {
-    await prevUser.update({ ...req.body });
-    user = prevUser;
-    console.log(prevUser);
-  } else {
-    user = imageUrl
-      ? await userModel.create({
-          ...req.body,
-          dob: new Date(dob),
-          avatar: imageUrl.Location,
-        })
-      : await userModel.create({
-          ...req.body,
-          dob: new Date(dob),
-        });
-  }
-
-  const otp = generateOTP();
-
-  await otpModel.create({
-    otp,
-    userId: user.id,
-  });
-
-  const message = `<html lang="en">
+const getMsg = (otp) => {
+  return `<html lang="en">
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -65,8 +34,53 @@ exports.register = catchAsyncError(async (req, res, next) => {
     </div>
   </body>
   </html>`;
+};
+
+const storeOTP = async ({ otp, userId }) => {
+  console.log({ otp, userId });
+
+  const otpInstance = await otpModel.findOne({ where: { userId } });
+  if (!otpInstance) {
+    await otpModel.create({
+      otp, userId
+    });
+  } else {
+    otpInstance.otp = otp;
+    await otpInstance.save();
+  }
+}
+
+exports.register = catchAsyncError(async (req, res, next) => {
+  console.log("register", req.body);
+  const { email, dob } = req.body;
+  const imageFile = req.file;
+  const imageUrl = imageFile && (await s3Uploadv2(imageFile));
+  let user;
+  const prevUser = await userModel.findOne({ email: email });
+
+  if (prevUser && !prevUser.isVerified) {
+    await prevUser.update({ ...req.body });
+    user = prevUser;
+    console.log(prevUser);
+  } else {
+    user = imageUrl
+      ? await userModel.create({
+        ...req.body,
+        dob: new Date(dob),
+        avatar: imageUrl.Location,
+      })
+      : await userModel.create({
+        ...req.body,
+        dob: new Date(dob),
+      });
+  }
+
+  const otp = generateOTP();
+
+  await storeOTP({ otp, userId: user.id });
 
   try {
+    const message = getMsg(otp)
     await sendEmail({
       email: user.email,
       subject: "Verify Registration OTP",
@@ -136,6 +150,10 @@ exports.login = catchAsyncError(async (req, res, next) => {
     );
   }
 
+  if (!user.isVerified) {
+    return next(new ErrorHandler("Please Verify OTP.", StatusCodes.UNAUTHORIZED));
+  }
+
   const isMatch = await user.comparePassword(password);
 
   if (!isMatch) {
@@ -148,10 +166,39 @@ exports.login = catchAsyncError(async (req, res, next) => {
   res.status(StatusCodes.OK).json({ user, token });
 });
 
+exports.resendOTP = catchAsyncError(async (req, res, next) => {
+  console.log("resendOTP", req.body);
+  const { email } = req.body;
+  if (!email) {
+    return next(new ErrorHandler("Please enter your email.", 400));
+  }
+
+  const user = await userModel.findOne({ where: { email } });
+  if (!user) {
+    return next(new ErrorHandler("Please register or User doesn't exist.", 400));
+  }
+
+  const otp = generateOTP();
+  await storeOTP({ otp, userId: user.id });
+
+  try {
+    const message = getMsg(otp);
+    await sendEmail({
+      email: email,
+      subject: "Resend OTP",
+      message,
+    });
+
+    res.status(200).json({ message: "OTP sent to your email successfully" });
+  } catch (error) {
+    return next(new ErrorHandler(error.message, 500));
+  }
+});
+
 exports.forgotPassword = catchAsyncError(async (req, res, next) => {
   console.log("forgot password", req.body);
-
-  if (!req.body.email) {
+  const { email } = req.body;
+  if (!email) {
     return next(
       new ErrorHandler("Please provide a valid email.", StatusCodes.BAD_REQUEST)
     );
@@ -170,10 +217,7 @@ exports.forgotPassword = catchAsyncError(async (req, res, next) => {
 
   const otp = generateOTP();
 
-  await otpModel.create({
-    otp,
-    userId: user.id,
-  });
+  await storeOTP({ otp, userId: user.id });
 
   const message = `<b>Your password reset OTP is :- <h2>${otp}</h2></b><div>If you have not requested this email then, please ignore it.</div>`;
 

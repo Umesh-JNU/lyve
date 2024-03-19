@@ -14,6 +14,7 @@ const {
   unfollowCreator,
   getCreatorFollowers,
   deleteUser,
+  resendOTP,
 } = require("./user.controller");
 const { user } = require("../../middlewares/validate");
 const { upload } = require("../../utils/s3");
@@ -21,6 +22,7 @@ const { upload } = require("../../utils/s3");
 router.post("/register", upload.single("image"), user.post, register);
 router.post("/verify-registerOtp", verifyRegisterOTP);
 router.post("/login", user.login, login);
+router.put("/resend-otp", resendOTP);
 router.post("/forgot-password", forgotPassword);
 router.post("/verify-otp", verifyOtp);
 router.put("/change-password", user.updatePassword, auth, updatePassword);
