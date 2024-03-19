@@ -21,14 +21,14 @@ exports.register = catchAsyncError(async (req, res, next) => {
   } else {
     user = imageUrl
       ? await userModel.create({
-          ...req.body,
-          dob: new Date(dob),
-          avatar: imageUrl.Location,
-        })
+        ...req.body,
+        dob: new Date(dob),
+        avatar: imageUrl.Location,
+      })
       : await userModel.create({
-          ...req.body,
-          dob: new Date(dob),
-        });
+        ...req.body,
+        dob: new Date(dob),
+      });
   }
 
   const otp = generateOTP();
@@ -134,6 +134,10 @@ exports.login = catchAsyncError(async (req, res, next) => {
         StatusCodes.NOT_FOUND
       )
     );
+  }
+
+  if (!user.isVerified) {
+    return next(new ErrorHandler("Please Verify OTP.", StatusCodes.UNAUTHORIZED));
   }
 
   const isMatch = await user.comparePassword(password);
