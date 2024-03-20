@@ -24,9 +24,9 @@ exports.createEvent = catchAsyncError(async (req, res, next) => {
   let event;
   imageLocation
     ? (event = await eventModel.create({
-        ...req.body,
-        thumbnail: imageLocation,
-      }))
+      ...req.body,
+      thumbnail: imageLocation,
+    }))
     : (event = await eventModel.create({ ...req.body }));
 
   await event.setGenre(genre);
@@ -69,3 +69,21 @@ exports.getUpcomingEvents = catchAsyncError(async (req, res, next) => {
     },
   });
 });
+
+exports.getRecommendedEvents = catchAsyncError(async (req, res, next) => {
+  try {
+    // Fetch all events ordered by createdAt in descending order
+    const allEvents = await eventModel.findAll({
+      order: [["createdAt", "DESC"]],
+      include: [
+        { model: genreModel, as: "genre", attributes: ["id", "name"] },
+        { model: userModel, as: "user" },
+      ],
+    });
+
+    res.status(StatusCodes.OK).json({ allEvents });
+  } catch (error) {
+    console.error("Error fetching events:", error);
+    next(new ErrorHandler("Error fetching events", StatusCodes.INTERNAL_SERVER_ERROR));
+  }
+})
