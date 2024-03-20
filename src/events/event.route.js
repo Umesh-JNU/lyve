@@ -9,17 +9,11 @@ const {
   getUpcomingEvents,
 } = require("./event.controller");
 
-const authCreator = authRole(["Creator"]);
+const authCreator = authRole(["Admin"]);
 
-router.post(
-  "/create",
-  upload.single("thumbnail"),
-  auth,
-  authCreator,
-  createEvent
-);
+router.post("/create", upload.single("thumbnail"), auth, createEvent);
 
-router.delete("/delete/:eventId", auth, authCreator, deleteEvent);
+router.delete("/delete/:eventId", auth, deleteEvent);
 
 router.route("/genre").post(auth, authCreator, createGenre);
 

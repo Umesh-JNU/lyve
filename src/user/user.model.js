@@ -117,13 +117,21 @@ const userModel = db.define(
       defaultValue: false,
     },
     role: {
-      type: DataTypes.ENUM("User", "Creator", "Admin"),
+      type: DataTypes.ENUM("User", "Admin"),
       allowNull: false,
       validate: {
         isIn: {
-          args: [["User", "Creator", "Admin"]],
-          msg: "Role must be one of: User, Creator, or Admin",
+          args: [["User", "Admin"]],
+          msg: "Role must be one of: User, or Admin",
         },
+      },
+    },
+    gender: {
+      type: DataTypes.ENUM("Male", "Female"),
+      allowNull: false,
+      validate: {
+        notNull: { msg: "Gender is required" },
+        notEmpty: { msg: "Gender is required" },
       },
     },
     avatar: {

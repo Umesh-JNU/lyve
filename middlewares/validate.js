@@ -11,6 +11,7 @@ class Validate {
         "country",
         "role",
         "dob",
+        "gender"
       ],
       login: ["email", "password"],
       updatePassword: ["password", "confirmPassword"],
