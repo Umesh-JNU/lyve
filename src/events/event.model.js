@@ -94,6 +94,27 @@ const eventModel = db.define(
         notEmpty: { msg: "Spots can't be null" },
       },
     },
+    status: {
+      type: DataTypes.ENUM("Upcoming", "Live", "Completed"),
+      allowNull: false,
+      validate: {
+        isIn: {
+          args: [["Upcoming", "Live", "Completed"]],
+          msg: "Status must be one of: Upcoming, Live or Completed",
+        },
+      },
+    },
+    event_duration: {
+      type: DataTypes.TIME,
+      allowNull: false,
+      validate: {
+        isValidTime: function (value) {
+          if (!value || !isTime(value)) {
+            throw new Error("Invalid time");
+          }
+        },
+      },
+    },
     thumbnail: {
       type: DataTypes.STRING,
       defaultValue: "none",

@@ -8,6 +8,9 @@ const {
   updateUser,
   register,
 } = require("./admin.controller");
+const {
+  createGenre,
+} = require("../events/event.controller");
 const { upload } = require("../../utils/s3");
 
 const adminRouter = express.Router();
@@ -25,5 +28,8 @@ adminRouter
   .put(auth, authAdmin, updateUser);
 
 adminRouter.post("/register", register);
+
+adminRouter.route("/genre").post(auth, authAdmin, createGenre);
+
 
 module.exports = adminRouter;
