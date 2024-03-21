@@ -10,13 +10,11 @@ const {
   getRecommendedEvents
 } = require("./event.controller");
 
-const authCreator = authRole(["Admin"]);
+const authAdmin = authRole(["Admin"]);
 
 router.post("/create", upload.single("thumbnail"), auth, createEvent);
 
 router.delete("/delete/:eventId", auth, deleteEvent);
-
-router.route("/genre").post(auth, authCreator, createGenre);
 
 router.route("/recommended-events").get(auth, getRecommendedEvents);
 
