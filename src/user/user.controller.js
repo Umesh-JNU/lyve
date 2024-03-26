@@ -66,11 +66,13 @@ exports.register = catchAsyncError(async (req, res, next) => {
     user = imageUrl
       ? await userModel.create({
         ...req.body,
+        role: "User",
         dob: new Date(dob),
         avatar: imageUrl.Location,
       })
       : await userModel.create({
         ...req.body,
+        role: "User",
         dob: new Date(dob),
       });
   }
@@ -315,7 +317,9 @@ exports.getProfile = catchAsyncError(async (req, res, next) => {
 
   const { userId } = req;
 
-  const user = await userModel.findByPk(userId);
+  const user = await userModel.findByPk(userId, {
+    attributes: { exclude: ['role'] }, // Exclude 'role' attribute
+  });
 
   if (!user)
     return next(new ErrorHandler("User not found", StatusCodes.NOT_FOUND));
@@ -323,11 +327,18 @@ exports.getProfile = catchAsyncError(async (req, res, next) => {
   res.status(StatusCodes.OK).json({ user });
 });
 
+
 exports.updateProfile = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
+  console.log("Req Body", req.body)
+  const imageFile = req.file
 
+  if (imageFile) {
+    const imageUrl = await s3Uploadv2(imageFile);
+    req.body.avatar = imageUrl.Location
+  }
   const updateData = userModel.getUpdateFields(req.body);
-
+  console.log(updateData)
   if (Object.keys(updateData).length === 0) {
     return next(
       new ErrorHandler(

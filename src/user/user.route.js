@@ -27,7 +27,7 @@ router.post("/forgot-password", forgotPassword);
 router.post("/verify-otp", verifyOtp);
 router.put("/change-password", user.updatePassword, auth, updatePassword);
 router.put("/reset-password", user.updatePassword, updatePassword);
-router.route("/profile").get(auth, getProfile).put(auth, updateProfile);
+router.route("/profile").get(auth, getProfile).put(upload.single("image"), auth, updateProfile);
 router.delete("/delete", auth, deleteUser);
 
 //=================================Follow Stuff =====================================================

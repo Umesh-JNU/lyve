@@ -13,10 +13,10 @@ exports.createUser = catchAsyncError(async (req, res, next) => {
   let user;
   user = imageUrl
     ? await userModel.create({
-        ...req.body,
-        isVerified: true,
-        avatar: imageUrl,
-      })
+      ...req.body,
+      isVerified: true,
+      avatar: imageUrl,
+    })
     : await userModel.create({ ...req.body, isVerified: true });
 
   res.status(StatusCodes.CREATED).json({ user });

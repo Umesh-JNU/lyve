@@ -9,7 +9,6 @@ class Validate {
         "password",
         "mobile_no",
         "country",
-        "role",
         "dob",
         "gender"
       ],
