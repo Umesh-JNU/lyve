@@ -5,6 +5,8 @@ const sendEmail = require("../../utils/sendEmail");
 const generateOTP = require("../../utils/otpGenerator");
 const { StatusCodes } = require("http-status-codes");
 const { s3Uploadv2 } = require("../../utils/s3");
+const { Op } = require("sequelize");
+const { db } = require("../../config/database")
 
 const getMsg = (otp) => {
   return `<html lang="en">
@@ -443,16 +445,68 @@ exports.unfollowCreator = catchAsyncError(async (req, res, next) => {
 
 exports.getCreatorFollowers = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
-  const currCreator = await userModel.findByPk(userId, {
-    include: [{ model: userModel, as: "followers", attributes: ["id", "username", "avatar"] }],
+  const { page_number, page_size } = req.query;
+
+  let query = {};
+  if (page_number && page_size) {
+    const currentPage = parseInt(page_number, 10) || 1;
+    const limit = parseInt(page_size, 10) || 10;
+    const offset = (currentPage - 1) * limit;
+
+    query.offset = offset;
+    query.limit = limit;
+  }
+
+  console.log("Query", query);
+
+  const followers = await userModel.findAll({
+    where: {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "follower_user_id" 
+          FROM "Follow" 
+          WHERE "following_user_id" = ${userId}
+        )`),
+      },
+    },
+    ...query,
+    attributes: ["id", "username", "avatar"],
   });
-  res.status(StatusCodes.OK).json({ followers: currCreator.followers });
+
+  res.status(StatusCodes.OK).json({ followers });
 });
+
+
 
 exports.getCreatorFollowing = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
-  const currCreator = await userModel.findByPk(userId, {
-    include: [{ model: userModel, as: "following", attributes: ["id", "username", "avatar"] }],
+  const { page_number, page_size } = req.query;
+
+  let query = {};
+  if (page_number && page_size) {
+    const currentPage = parseInt(page_number, 10) || 1;
+    const limit = parseInt(page_size, 10) || 10;
+    const offset = (currentPage - 1) * limit;
+
+    query.offset = offset;
+    query.limit = limit;
+  }
+
+  console.log("Query", query);
+
+  const followings = await userModel.findAll({
+    where: {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "following_user_id" 
+          FROM "Follow" 
+          WHERE "follower_user_id" = ${userId}
+        )`),
+      },
+    },
+    ...query,
+    attributes: ["id", "username", "avatar"],
   });
-  res.status(StatusCodes.OK).json({ followers: currCreator.following });
+
+  res.status(StatusCodes.OK).json({ followings });
 });

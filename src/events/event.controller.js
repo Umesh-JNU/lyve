@@ -8,6 +8,7 @@ const { Op } = require("sequelize");
 const formattedQuery = require("../../utils/apiFeatures");
 const { Wishlist } = require("../wishlist");
 const { db } = require("../../config/database")
+
 exports.createEvent = catchAsyncError(async (req, res, next) => {
   console.log("Create event", req.body);
   const { userId } = req;
@@ -188,3 +189,69 @@ exports.getEvents = catchAsyncError(async (req, res, next) => {
   res.status(200).json({ success: true, events });
 });
 
+exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
+  const { userId } = req;
+  const { page_number, page_size } = req.query;
+
+  let query = {
+    order: [["createdAt", "DESC"]], // Order events by creation date in descending order
+  };
+  if (page_number && page_size) {
+    const currentPage = parseInt(page_number, 10) || 1;
+    const limit = parseInt(page_size, 10) || 10;
+    const offset = (currentPage - 1) * limit;
+
+    query.offset = offset;
+    query.limit = limit;
+  }
+
+  // Get the list of users that the current user is following
+  const followingUsers = await userModel.findAll({
+    where: {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "following_user_id" 
+          FROM "Follow" 
+          WHERE "follower_user_id" = ${userId}
+        )`),
+      },
+    },
+    attributes: ["id"],
+  });
+
+  // Extract the IDs of the following users
+  const followingUserIds = followingUsers.map((user) => user.id);
+
+  // Get events associated with the following users
+  const following_events = await eventModel.findAll({
+    where: {
+      userId: {
+        [Op.in]: followingUserIds,
+      },
+    },
+    ...query,
+    include: [
+      {
+        model: genreModel,
+        as: "genre",
+        attributes: ["id", "name"],
+      },
+      {
+        model: userModel,
+        as: "creator",
+        attributes: ["id", "username", "avatar"],
+      },
+    ],
+  });
+
+  res.status(StatusCodes.OK).json({ following_events });
+});
+
+exports.getGenres = catchAsyncError(async (req, res) => {
+
+  const genres = await genreModel.findAll({
+    attributes: ['id', 'name'], // Select only id and name fields
+  });
+  res.status(200).json({ success: true, genres });
+
+});
