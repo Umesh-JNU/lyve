@@ -15,6 +15,7 @@ const {
   getCreatorFollowers,
   deleteUser,
   resendOTP,
+  getCreatorFollowing,
 } = require("./user.controller");
 const { user } = require("../../middlewares/validate");
 const { upload } = require("../../utils/s3");
@@ -34,5 +35,6 @@ router.delete("/delete", auth, deleteUser);
 router.post("/follow/:creatorId", auth, followCreator);
 router.delete("/unfollow/:creatorId", auth, unfollowCreator);
 router.get("/followers", auth, getCreatorFollowers);
+router.get("/following", auth, getCreatorFollowing);
 
 module.exports = router;
