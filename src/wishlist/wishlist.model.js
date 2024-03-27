@@ -20,6 +20,8 @@ const Wishlist = db.define("Wishlist", {
   },
 }, {
   timestamps: true,
-});
+  tableName: "wishlist"
+}
+);
 
 module.exports = { Wishlist };

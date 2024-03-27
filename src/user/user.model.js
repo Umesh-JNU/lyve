@@ -176,6 +176,7 @@ userModel.getUpdateFields = function (userData) {
     "updatedAt",
     "deletedAt",
     "password",
+    "isVerified",
     "role",
   ];
   const updateFields = attributes.filter(

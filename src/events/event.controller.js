@@ -5,17 +5,19 @@ const { userModel } = require("../user");
 const { StatusCodes } = require("http-status-codes");
 const { s3Uploadv2 } = require("../../utils/s3");
 const { Op } = require("sequelize");
-
+const formattedQuery = require("../../utils/apiFeatures");
+const { Wishlist } = require("../wishlist");
+const { db } = require("../../config/database")
 exports.createEvent = catchAsyncError(async (req, res, next) => {
   console.log("Create event", req.body);
   const { userId } = req;
-  const { genreId } = req.body;
-  const genre = await genreModel.findByPk(genreId);
+  const { genre } = req.body;
+  const genreReq = await genreModel.findOne({ where: { name: genre } });
   const creator = await userModel.findByPk(userId);
 
-  if (!genre)
+  if (!genreReq)
     return next(
-      new ErrorHandler("Genre with entered Id not found", StatusCodes.NOT_FOUND)
+      new ErrorHandler("Genre not found", StatusCodes.NOT_FOUND)
     );
 
 
@@ -34,13 +36,12 @@ exports.createEvent = catchAsyncError(async (req, res, next) => {
   };
 
   const event = await eventModel.create(eventData);
-  await event.setGenre(genre);
+  await event.setGenre(genreReq);
   await event.setCreator(creator)
 
   const newEvent = await eventModel.findByPk(event.id, {
     include: [
       { model: genreModel, as: "genre", attributes: ["id", "name"] },
-      { model: userModel, as: "creator" },
     ],
   });
 
@@ -92,3 +93,98 @@ exports.getRecommendedEvents = catchAsyncError(async (req, res, next) => {
     next(new ErrorHandler("Error fetching events", StatusCodes.INTERNAL_SERVER_ERROR));
   }
 })
+
+exports.getEvents = catchAsyncError(async (req, res, next) => {
+  const { status, page_number, page_size, genre, wishlisted, search_query } = req.query;
+  const { userId } = req;
+
+  let query = {};
+
+  if (status) {
+    query.where = {
+      status: status,
+    };
+  }
+
+  if (genre) {
+    const genreArray = Array.isArray(genre) ? genre : [genre]; // Ensure genre is an array
+    const genreIds = [];
+
+    for (const genreName of genreArray) {
+      // Find the genreIds corresponding to each genre name
+      const genreRecord = await genreModel.findOne({
+        where: {
+          name: genreName,
+        },
+      });
+
+      if (genreRecord) {
+        genreIds.push(genreRecord.id);
+      }
+    }
+
+    if (genreIds.length > 0) {
+      // Add the genreIds to the query with OR condition
+      query.where = {
+        ...query.where,
+        Genre: { [Op.or]: genreIds },
+      };
+    }
+  }
+
+  if (wishlisted === "true" && userId) {
+    // If userId and wishlisted=true parameter are provided
+    const user = await userModel.findByPk(userId);
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    const wishlistEvents = await user.getWishlists({
+      where: { isWishlisted: true },
+      attributes: ["eventId"],
+    });
+
+    const eventIds = wishlistEvents.map((wishlistEvent) => wishlistEvent.eventId);
+
+    query.where = {
+      ...query.where,
+      id: { [Op.in]: eventIds },
+    };
+  }
+
+  if (search_query) {
+    query.where = {
+      ...query.where,
+      [Op.or]: [
+        { title: { [Op.iLike]: `%${search_query}%` } },
+        { host: { [Op.iLike]: `%${search_query}%` } },
+      ],
+    };
+  }
+
+
+  if (page_number && page_size) {
+    const currentPage = parseInt(page_number, 10) || 1;
+    const limit = parseInt(page_size, 10) || 10;
+    const offset = (currentPage - 1) * limit;
+
+    query.offset = offset;
+    query.limit = limit;
+  }
+
+  console.log("Query", query);
+
+  const events = await eventModel.findAll({
+    ...query,
+    include: [
+      {
+        model: genreModel,
+        as: "genre",
+        attributes: ["id", "name"], // Include genre details in the result
+      },
+    ],
+  });
+
+  res.status(200).json({ success: true, events });
+});
+
