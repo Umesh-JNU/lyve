@@ -8,7 +8,9 @@ const {
   createGenre,
   getUpcomingEvents,
   getRecommendedEvents,
-  getEvents
+  getEvents,
+  getFollowingEvents,
+  getGenres
 } = require("./event.controller");
 
 router.post("/create", upload.single("thumbnail"), auth, createEvent);
@@ -16,6 +18,10 @@ router.post("/create", upload.single("thumbnail"), auth, createEvent);
 router.delete("/delete/:eventId", auth, deleteEvent);
 
 router.get("/get-events", auth, getEvents);
+
+router.get("/get-genre", auth, getGenres);
+
+router.get("/get-following-events", auth, getFollowingEvents);
 
 router.route("/recommended-events").get(auth, getRecommendedEvents);
 

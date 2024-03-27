@@ -13,19 +13,19 @@ Wishlist.belongsTo(userModel, { foreignKey: "userId" });
 
 
 const insertQuery = async () => {
-  // create admin
-  await userModel.create({
-    email: "yashb.quantumitinnovation@gmail.com",
-    password: "password",
-    username: "Yashbarge",
-    mobile_no: "7667826351",
-    country: "India",
-    dob: "2002-04-30",
-    isVerified: true,
-    role: "User",
-    gender: 'Male',
-    avatar: "https://jeff-truck.s3.amazonaws.com/biz/1710496638163-user-logo.jpg",
-  });
+    // create admin
+    await userModel.create({
+        email: "yashbarge@gmail.com",
+        password: "password",
+        username: "Yashbarge",
+        mobile_no: "7667826351",
+        country: "India",
+        dob: "2002-04-30",
+        isVerified: true,
+        role: "User",
+        gender: 'Male',
+        avatar: "https://jeff-truck.s3.amazonaws.com/biz/1710496638163-user-logo.jpg",
+    });
 
 };
 
