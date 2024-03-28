@@ -99,24 +99,35 @@ exports.getEvents = catchAsyncError(async (req, res, next) => {
   const { status, page_number, page_size, genre, wishlisted, search_query } = req.query;
   const { userId } = req;
 
-  let query = {};
+  let where = {};
+  const query = {
+    where,
+    include: [
+      {
+        model: genreModel,
+        as: "genre",
+        attributes: ["id", "name"],
+      },
+      {
+        model: userModel,
+        as: "creator",
+        attributes: ["id", "username", "avatar"]
+      },
+    ],
+    order: [['createdAt', 'DESC']],
+  };
 
   if (status) {
-    query.where = {
-      status: status,
-    };
+    where.status = status;
   }
 
   if (genre) {
-    const genreArray = Array.isArray(genre) ? genre : [genre]; // Ensure genre is an array
+    const genreArray = Array.isArray(genre) ? genre : [genre];
     const genreIds = [];
 
     for (const genreName of genreArray) {
-      // Find the genreIds corresponding to each genre name
       const genreRecord = await genreModel.findOne({
-        where: {
-          name: genreName,
-        },
+        where: { name: genreName },
       });
 
       if (genreRecord) {
@@ -134,35 +145,22 @@ exports.getEvents = catchAsyncError(async (req, res, next) => {
   }
 
   if (wishlisted === "true" && userId) {
-    // If userId and wishlisted=true parameter are provided
-    const user = await userModel.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: "User not found" });
-    }
-
-    const wishlistEvents = await user.getWishlists({
-      where: { isWishlisted: true },
+    const wishlistEvents = await Wishlist.findAll({
+      where: { userId, isWishlisted: true },
       attributes: ["eventId"],
     });
 
     const eventIds = wishlistEvents.map((wishlistEvent) => wishlistEvent.eventId);
 
-    query.where = {
-      ...query.where,
-      id: { [Op.in]: eventIds },
-    };
+    where.id = { [Op.in]: eventIds };
   }
 
   if (search_query) {
-    query.where = {
-      ...query.where,
-      [Op.or]: [
-        { title: { [Op.iLike]: `%${search_query}%` } },
-        { host: { [Op.iLike]: `%${search_query}%` } },
-      ],
-    };
+    where[Op.or] = [
+      { title: { [Op.iLike]: `%${search_query}%` } },
+      { host: { [Op.iLike]: `%${search_query}%` } },
+    ];
   }
-
 
   if (page_number && page_size) {
     const currentPage = parseInt(page_number, 10) || 1;
@@ -175,19 +173,22 @@ exports.getEvents = catchAsyncError(async (req, res, next) => {
 
   console.log("Query", query);
 
-  const events = await eventModel.findAll({
-    ...query,
-    include: [
-      {
-        model: genreModel,
-        as: "genre",
-        attributes: ["id", "name"], // Include genre details in the result
-      },
-    ],
-  });
+  const events = await eventModel.findAll(query);
 
-  res.status(200).json({ success: true, events });
+  // Add the isWishlisted field to each event
+  const eventsWithWishlist = await Promise.all(events.map(async (event) => {
+    const isWishlisted = await Wishlist.findOne({
+      where: { userId, eventId: event.id, isWishlisted: true },
+    });
+    return {
+      ...event.toJSON(),
+      isWishlisted: !!isWishlisted,
+    };
+  }));
+
+  res.status(200).json({ success: true, events: eventsWithWishlist });
 });
+
 
 exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
@@ -244,8 +245,27 @@ exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
     ],
   });
 
-  res.status(StatusCodes.OK).json({ following_events });
+  // Check if each event is wishlisted by the current user
+  const formattedEvents = await Promise.all(following_events.map(async (event) => {
+    const isWishlisted = await Wishlist.findOne({
+      where: {
+        userId,
+        eventId: event.id,
+        isWishlisted: true,
+      },
+      attributes: ["id"],
+    });
+
+    return {
+      ...event.toJSON(),
+      isWishlisted: !!isWishlisted, // Convert to boolean
+    };
+  }));
+
+  res.status(StatusCodes.OK).json({ following_events: formattedEvents });
 });
+
+
 
 exports.getGenres = catchAsyncError(async (req, res) => {
 
@@ -253,5 +273,89 @@ exports.getGenres = catchAsyncError(async (req, res) => {
     attributes: ['id', 'name'], // Select only id and name fields
   });
   res.status(200).json({ success: true, genres });
+
+});
+
+exports.getMyUpcomingEvents = catchAsyncError(async (req, res, next) => {
+  const { userId } = req; // Assuming user ID is stored in req.user
+  const { page_number, page_size } = req.query;
+
+  const today = new Date();
+  const formattedToday = today.toISOString().split('T')[0];
+  console.log(formattedToday)
+  const currentPage = parseInt(page_number, 10) || 1;
+  const limit = parseInt(page_size, 10) || 10;
+  const offset = (currentPage - 1) * limit;
+
+  const myUpcomingEvents = await eventModel.findAll({
+    where: {
+      userId: userId,
+      event_date: { [Op.gt]: today },
+    },
+    order: [['event_date', 'ASC']], // Order by event date ascending
+    limit: limit,
+    offset: offset,
+  });
+
+  res.status(200).json({ success: true, myUpcomingEvents });
+
+});
+
+exports.globalSearch = catchAsyncError(async (req, res, next) => {
+  const { search_query, page_number, page_size } = req.query;
+
+  // Define pagination parameters
+  let query = {};
+  if (page_number && page_size) {
+    const currentPage = parseInt(page_number, 10) || 1;
+    const limit = parseInt(page_size, 10) || 10;
+    const offset = (currentPage - 1) * limit;
+
+    query.offset = offset;
+    query.limit = limit;
+  }
+
+  // Search users based on the search query
+  const users = await userModel.findAll({
+    where: {
+      [Op.or]: [
+        { username: { [Op.iLike]: `%${search_query}%` } },
+      ],
+    },
+    ...query,
+    attributes: ['id', 'username', 'email'],
+  });
+
+  // Search genres based on the search query
+  const genres = await genreModel.findAll({
+    where: {
+      name: { [Op.iLike]: `%${search_query}%` },
+    },
+    ...query,
+    attributes: ['id', 'name'],
+  });
+
+  // Search events based on the search query
+  const events = await eventModel.findAll({
+    where: {
+      title: { [Op.iLike]: `%${search_query}%` },
+    },
+    ...query,
+    attributes: ['id', 'title', 'event_date'],
+    include: [
+      {
+        model: genreModel,
+        as: 'genre',
+        attributes: ['id', 'name'],
+      },
+    ],
+  });
+
+  res.status(200).json({
+    success: true,
+    users: users,
+    genres: genres,
+    events: events,
+  });
 
 });
