@@ -445,7 +445,7 @@ exports.unfollowCreator = catchAsyncError(async (req, res, next) => {
 
 exports.getCreatorFollowers = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
-  const { page_number, page_size } = req.query;
+  const { page_number, page_size, search_query } = req.query;
 
   let query = {};
   if (page_number && page_size) {
@@ -457,10 +457,8 @@ exports.getCreatorFollowers = catchAsyncError(async (req, res, next) => {
     query.limit = limit;
   }
 
-  console.log("Query", query);
-
-  const followers = await userModel.findAll({
-    where: {
+  if (search_query) {
+    query.where = {
       id: {
         [Op.in]: db.literal(`(
           SELECT "follower_user_id" 
@@ -468,7 +466,25 @@ exports.getCreatorFollowers = catchAsyncError(async (req, res, next) => {
           WHERE "following_user_id" = ${userId}
         )`),
       },
-    },
+      username: {
+        [Op.iLike]: `%${search_query}%`,
+      },
+    };
+  } else {
+    query.where = {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "follower_user_id" 
+          FROM "Follow" 
+          WHERE "following_user_id" = ${userId}
+        )`),
+      },
+    };
+  }
+
+  console.log("Query", query);
+
+  const followers = await userModel.findAll({
     ...query,
     attributes: ["id", "username", "avatar"],
   });
@@ -478,9 +494,10 @@ exports.getCreatorFollowers = catchAsyncError(async (req, res, next) => {
 
 
 
+
 exports.getCreatorFollowing = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
-  const { page_number, page_size } = req.query;
+  const { page_number, page_size, search_query } = req.query;
 
   let query = {};
   if (page_number && page_size) {
@@ -492,10 +509,8 @@ exports.getCreatorFollowing = catchAsyncError(async (req, res, next) => {
     query.limit = limit;
   }
 
-  console.log("Query", query);
-
-  const followings = await userModel.findAll({
-    where: {
+  if (search_query) {
+    query.where = {
       id: {
         [Op.in]: db.literal(`(
           SELECT "following_user_id" 
@@ -503,10 +518,29 @@ exports.getCreatorFollowing = catchAsyncError(async (req, res, next) => {
           WHERE "follower_user_id" = ${userId}
         )`),
       },
-    },
+      username: {
+        [Op.iLike]: `%${search_query}%`,
+      },
+    };
+  } else {
+    query.where = {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "following_user_id" 
+          FROM "Follow" 
+          WHERE "follower_user_id" = ${userId}
+        )`),
+      },
+    };
+  }
+
+  console.log("Query", query);
+
+  const followings = await userModel.findAll({
     ...query,
     attributes: ["id", "username", "avatar"],
   });
 
   res.status(StatusCodes.OK).json({ followings });
 });
+

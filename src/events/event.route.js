@@ -10,7 +10,9 @@ const {
   getRecommendedEvents,
   getEvents,
   getFollowingEvents,
-  getGenres
+  getGenres,
+  getMyUpcomingEvents,
+  globalSearch
 } = require("./event.controller");
 
 router.post("/create", upload.single("thumbnail"), auth, createEvent);
@@ -22,6 +24,10 @@ router.get("/get-events", auth, getEvents);
 router.get("/get-genre", auth, getGenres);
 
 router.get("/get-following-events", auth, getFollowingEvents);
+
+router.get("/global-search", auth, globalSearch);
+
+router.get("/my-upcoming-events", auth, getMyUpcomingEvents);
 
 router.route("/recommended-events").get(auth, getRecommendedEvents);
 
