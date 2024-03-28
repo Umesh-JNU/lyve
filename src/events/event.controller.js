@@ -192,11 +192,41 @@ exports.getEvents = catchAsyncError(async (req, res, next) => {
 
 exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
   const { userId } = req;
-  const { page_number, page_size } = req.query;
+  const { page_number, page_size, status, search_query } = req.query;
 
   let query = {
     order: [["createdAt", "DESC"]], // Order events by creation date in descending order
   };
+
+  if (status) {
+    query.where = {
+      status,
+    };
+  }
+
+  if (search_query) {
+    if (query.where) {
+      query.where = {
+        [Op.and]: [
+          query.where,
+          {
+            [Op.or]: [
+              { title: { [Op.iLike]: `%${search_query}%` } },
+              { host: { [Op.iLike]: `%${search_query}%` } },
+            ],
+          },
+        ],
+      };
+    } else {
+      query.where = {
+        [Op.or]: [
+          { title: { [Op.iLike]: `%${search_query}%` } },
+          { host: { [Op.iLike]: `%${search_query}%` } },
+        ],
+      };
+    }
+  }
+
   if (page_number && page_size) {
     const currentPage = parseInt(page_number, 10) || 1;
     const limit = parseInt(page_size, 10) || 10;
@@ -229,6 +259,7 @@ exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
       userId: {
         [Op.in]: followingUserIds,
       },
+      ...query.where, // Merge with existing where conditions
     },
     ...query,
     include: [
@@ -264,6 +295,7 @@ exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
 
   res.status(StatusCodes.OK).json({ following_events: formattedEvents });
 });
+
 
 
 
