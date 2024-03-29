@@ -29,6 +29,6 @@ const insertQuery = async () => {
 
 };
 
-// (async () => { await insertQuery(); })();
+(async () => { await insertQuery(); })();
 
 module.exports = { userModel, userRoute, eventModel, eventRouter, adminRouter, wishlistRoute };

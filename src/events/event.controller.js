@@ -63,6 +63,14 @@ exports.deleteEvent = catchAsyncError(async (req, res, next) => {
 
 exports.createGenre = catchAsyncError(async (req, res, next) => {
   console.log("Create Genre", req.body);
+  const thumbnailFile = req.file;
+  if (!thumbnailFile) {
+    throw new ErrorHandler("Thumbnail is required", StatusCodes.BAD_REQUEST);
+  }
+  if (thumbnailFile) {
+    const imageUrl = await s3Uploadv2(thumbnailFile);
+    req.body.thumbnail = imageUrl.Location;
+  }
   const genre = await genreModel.create({ ...req.body });
   res.status(StatusCodes.CREATED).json({ genre });
 });
@@ -302,7 +310,7 @@ exports.getFollowingEvents = catchAsyncError(async (req, res, next) => {
 exports.getGenres = catchAsyncError(async (req, res) => {
 
   const genres = await genreModel.findAll({
-    attributes: ['id', 'name'], // Select only id and name fields
+    attributes: ['id', 'name', 'thumbnail'], // Select only id and name fields
   });
   res.status(200).json({ success: true, genres });
 
@@ -335,7 +343,7 @@ exports.getMyUpcomingEvents = catchAsyncError(async (req, res, next) => {
 
 exports.globalSearch = catchAsyncError(async (req, res, next) => {
   const { search_query, page_number, page_size } = req.query;
-
+  const { userId } = req;
   // Define pagination parameters
   let query = {};
   if (page_number && page_size) {
@@ -355,7 +363,7 @@ exports.globalSearch = catchAsyncError(async (req, res, next) => {
       ],
     },
     ...query,
-    attributes: ['id', 'username', 'email'],
+    attributes: ['id', 'avatar', 'username'],
   });
 
   // Search genres based on the search query
@@ -364,7 +372,7 @@ exports.globalSearch = catchAsyncError(async (req, res, next) => {
       name: { [Op.iLike]: `%${search_query}%` },
     },
     ...query,
-    attributes: ['id', 'name'],
+    attributes: ['id', 'name', 'thumbnail'],
   });
 
   // Search events based on the search query
@@ -373,21 +381,50 @@ exports.globalSearch = catchAsyncError(async (req, res, next) => {
       title: { [Op.iLike]: `%${search_query}%` },
     },
     ...query,
-    attributes: ['id', 'title', 'event_date'],
+    attributes: ['id', 'title', 'event_date', "thumbnail", "host", "status",],
     include: [
       {
         model: genreModel,
         as: 'genre',
-        attributes: ['id', 'name'],
+        attributes: ['name',],
       },
     ],
   });
 
+  const eventsWithWishlist = await Promise.all(events.map(async (event) => {
+    const isWishlisted = await Wishlist.findOne({
+      where: { userId, eventId: event.id, isWishlisted: true },
+    });
+    return {
+      ...event.toJSON(),
+      isWishlisted: !!isWishlisted,
+    };
+  }));
+
+  const userFollowing = await userModel.findAll({
+    where: {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "following_user_id" 
+          FROM "Follow" 
+          WHERE "follower_user_id" = ${userId}
+        )`)
+      },
+    },
+  })
+
+  const followingUserIds = userFollowing.map((user) => user.id);
+
+  const usersWithFollowing = users.map((user) => ({
+    ...user.toJSON(),
+    following: followingUserIds.includes(user.id),
+  }));
+
   res.status(200).json({
     success: true,
-    users: users,
+    users: usersWithFollowing,
     genres: genres,
-    events: events,
+    events: eventsWithWishlist,
   });
 
 });
