@@ -7,6 +7,7 @@ const { StatusCodes } = require("http-status-codes");
 const { s3Uploadv2 } = require("../../utils/s3");
 const { Op } = require("sequelize");
 const { db } = require("../../config/database")
+const { eventModel } = require("../events/event.model");
 
 const getMsg = (otp) => {
   return `<html lang="en">
@@ -542,5 +543,50 @@ exports.getCreatorFollowing = catchAsyncError(async (req, res, next) => {
   });
 
   res.status(StatusCodes.OK).json({ followings });
+});
+
+exports.getSuggestedUsers = catchAsyncError(async (req, res, next) => {
+  const { userId } = req;
+  let query = {
+    where: {
+      id: { [Op.ne]: userId }, // Exclude current user
+      role: "User"
+    },
+    include: [
+      {
+        model: eventModel,
+        as: "events",
+        attributes: [],
+      },
+    ],
+    group: ["User.id"],
+  };
+
+  const userFollowing = await userModel.findAll({
+    where: {
+      id: {
+        [Op.in]: db.literal(`(
+          SELECT "following_user_id" 
+          FROM "Follow" 
+          WHERE "follower_user_id" = ${userId}
+        )`)
+      },
+    },
+  })
+
+  const followingUserIds = userFollowing.map((user) => user.id);
+
+  // Find users who have created events
+  const suggested = await userModel.findAll({
+    ...query,
+    attributes: ["id", "username", "avatar"],
+  });
+
+  const suggestedUsers = suggested.map((user) => ({
+    ...user.toJSON(),
+    following: followingUserIds.includes(user.id),
+  }));
+
+  res.status(200).json({ success: true, suggestedUsers });
 });
 

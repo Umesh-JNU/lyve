@@ -29,7 +29,7 @@ adminRouter
 
 adminRouter.post("/register", register);
 
-adminRouter.route("/genre").post(auth, authAdmin, createGenre);
+adminRouter.route("/genre").post(upload.single("thumbnail"), auth, authAdmin, createGenre);
 
 
 module.exports = adminRouter;

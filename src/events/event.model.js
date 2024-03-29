@@ -136,6 +136,14 @@ const genreModel = db.define("Genre", {
       notEmpty: { msg: "Genre name can't be empty" },
     },
   },
+  thumbnail: {
+    type: DataTypes.STRING,
+    allowNull: false,
+    validate: {
+      notNull: { msg: "Thumbnail can't be empty" },
+      notEmpty: { msg: "Thumbnail can't be empty" },
+    },
+  },
 });
 
 genreModel.hasMany(eventModel, { foreignKey: "Genre", as: "event" });
